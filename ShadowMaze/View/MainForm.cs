@@ -13,114 +13,170 @@ namespace ShadowMaze.View
         private MazeView mazeView;
         private PictureBox canvas;
 
+        // музыка
+        private System.Media.SoundPlayer backgroundMusic;
+
         public MainForm()
         {
             InitializeComponent();
 
+            this.WindowState = FormWindowState.Maximized;
             this.Text = "Лабиринт Теней: Память";
             this.MinimumSize = new Size(400, 400);
 
-            // панель инструментов сверху
-            Panel toolPanel = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 35,
-                BackColor = Color.FromArgb(45, 45, 48)
-            };
-            this.Controls.Add(toolPanel);
-
-            // надпись "Радиус:"
-            Label lblRadius = new Label
-            {
-                Text = "Радиус:",
-                ForeColor = Color.White,
-                Location = new Point(5, 8),
-                AutoSize = true
-            };
-            toolPanel.Controls.Add(lblRadius);
-
-            // поле выбора радиуса обзора
-            NumericUpDown numRadius = new NumericUpDown
-            {
-                Location = new Point(55, 5),
-                Width = 45,
-                Minimum = 1,
-                Maximum = 10,
-                Value = 3
-            };
-            toolPanel.Controls.Add(numRadius);
-
-            // кнопка пересоздания лабиринта
-            Button btnRestart = new Button
-            {
-                Text = "Новый лабиринт",
-                Location = new Point(110, 4),
-                Width = 110,
-                Height = 25
-            };
-            toolPanel.Controls.Add(btnRestart);
-
-            // галочка для отладки — показывает весь лабиринт
-            CheckBox chkFullVision = new CheckBox
-            {
-                Text = "Полная видимость",
-                ForeColor = Color.White,
-                Location = new Point(230, 7),
-                AutoSize = true
-            };
-            toolPanel.Controls.Add(chkFullVision);
-
-            // временная кнопка для теста движения (потом убрать)
-            Button btnTestRight = new Button
-            {
-                Text = "Тест вправо",
-                Location = new Point(355, 4),
-                Width = 90,
-                Height = 25
-            };
-            toolPanel.Controls.Add(btnTestRight);
-
-            // холст для игры
             canvas = new PictureBox
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(20, 20, 20) // чуть светлее чёрного, чтобы видеть край лабиринта
+                BackColor = Color.FromArgb(20, 20, 20)
             };
             this.Controls.Add(canvas);
 
-            // запускаем первую игру
-            InitializeGame();
-
-            // связываем элементы панели с моделью
-            numRadius.ValueChanged += (s, e) =>
+            // безопасная загрузка музыки
+            try
             {
-                if (model != null) model.Player.VisionRadius = (int)numRadius.Value;
-                canvas.Invalidate();
-            };
-
-            btnRestart.Click += (s, e) => InitializeGame();
-
-            chkFullVision.CheckedChanged += (s, e) =>
+                backgroundMusic = new System.Media.SoundPlayer(Properties.Resources.background);
+                backgroundMusic.PlayLooping();
+            }
+            catch
             {
-                if (model != null) model.FullVisibility = chkFullVision.Checked;
-                canvas.Invalidate();
-            };
 
-            btnTestRight.Click += (s, e) =>
+            }
+
+            this.FormClosing += (s, e) => backgroundMusic?.Dispose();
+
+            mazeView = new MazeView(null, canvas);
+
+            // главное мменю
+            mazeView.IsMainMenu = true;
+            mazeView.MainMenuStartRequested += StartGame;
+            mazeView.MainMenuExitRequested += () =>
             {
-                controller?.HandleInput(Direction.Right);
+                backgroundMusic?.Stop();
+                backgroundMusic?.Dispose();
+                Application.Exit();
             };
+            mazeView.MainMenuReturnRequested += ShowMainMenu;
 
-            // при изменении размеров окна перерисовываем
-            canvas.Resize += (s, e) => canvas.Invalidate();
+            canvas.Paint += mazeView.OnPaint;
+            canvas.MouseClick += (s, e) => mazeView.HandleMouseClick(e);
+            canvas.MouseMove += (s, e) => mazeView.HandleMouseMove(e);
+            canvas.MouseUp += (s, e) => mazeView.HandleMouseUp(e);
+            canvas.Invalidate();
+
+            // кнопочки
+            this.KeyPreview = true;
+            this.KeyDown += OnKeyDown;
         }
 
-        // надёжный перехват клавиш: работает, даже если фокус на панели или кнопках
-        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        private void ShowMainMenu()
         {
-            if (model.IsFinished) return false;
+            model?.StopEnemyTimer();
+            if (mazeView != null)
+            {
+                mazeView.IsMainMenu = true;
+                mazeView.IsPlaying = false;
+                mazeView.ShowVictory = false;
+                mazeView.ShowDefeat = false;
+                mazeView.IsMenuVisible = false;
+                mazeView.IsPaused = false;
+            }
+            if (model != null)
+            {
+                model.PlayerMoved -= mazeView.OnModelChanged;
+                model.MemoryChanged -= mazeView.OnModelChanged;
+                model.GameWon -= OnGameWon;
+                model.GameLost -= OnGameLost;
+                model.EffectsUpdated -= () => canvas.Invalidate();
+            }
+            model = null;
+            controller = null;
+            canvas.Invalidate();
+        }
+
+        private void StartGame()
+        {
+            mazeView.IsMainMenu = false;
+            mazeView.IsPlaying = true;
+            mazeView.ShowVictory = false;
+            mazeView.ShowDefeat = false;
+            mazeView.IsMenuVisible = false;
+            mazeView.IsPaused = false;
+
+            InitializeGame();
+        }
+
+        private void InitializeGame()
+        {
+            model?.StopEnemyTimer();
+
+            if (model != null)
+            {
+                model.PlayerMoved -= mazeView.OnModelChanged;
+                model.MemoryChanged -= mazeView.OnModelChanged;
+                model.GameWon -= OnGameWon;
+                model.GameLost -= OnGameLost;
+                model.EffectsUpdated -= () => canvas.Invalidate();
+            }
+
+            model = new GameModel(31, 31, 25);
+            controller = new GameController(model);
+            mazeView.SetModel(model);
+
+            model.PlayerMoved += mazeView.OnModelChanged;
+            model.MemoryChanged += mazeView.OnModelChanged;
+            model.GameWon += OnGameWon;
+            model.GameLost += OnGameLost;
+            model.EffectsUpdated += () => canvas.Invalidate();
+
+            mazeView.RestartRequested += StartGame;
+            mazeView.ExitRequested += () => Application.Exit();
+
+            canvas.Invalidate();
+        }
+
+        private void OnGameWon()
+        {
+            mazeView.ShowVictory = true;
+            mazeView.IsPlaying = false;
+            canvas.Invalidate();
+        }
+
+        private void OnGameLost()
+        {
+            mazeView.ShowDefeat = true;
+            mazeView.IsPlaying = false;
+            canvas.Invalidate();
+        }
+
+        private void OnKeyDown(object sender, KeyEventArgs e)
+        {
+            if (mazeView.IsMainMenu || mazeView.ShowVictory || mazeView.ShowDefeat)
+                return;
+
+            if (e.KeyCode == Keys.Escape)
+            {
+                if (mazeView.IsMenuVisible)
+                {
+                    mazeView.IsMenuVisible = false;
+                    mazeView.IsPaused = false;
+                    model?.Resume();
+                }
+                else
+                {
+                    mazeView.IsMenuVisible = true;
+                    mazeView.IsPaused = true;
+                    model?.Pause();
+                }
+                canvas.Invalidate();
+                e.Handled = true;
+                return;
+            }
+
+            if (mazeView.IsPaused || (model != null && model.IsFinished))
+                return;
+
             Direction? dir = null;
-            switch (keyData)
+            switch (e.KeyCode)
             {
                 case Keys.W: case Keys.Up: dir = Direction.Up; break;
                 case Keys.S: case Keys.Down: dir = Direction.Down; break;
@@ -130,59 +186,8 @@ namespace ShadowMaze.View
             if (dir.HasValue)
             {
                 controller?.HandleInput(dir.Value);
-                return true; // клавиша обработана
+                e.Handled = true;
             }
-            return base.ProcessCmdKey(ref msg, keyData);
-        }
-
-        // создаёт новую игру (при старте и по кнопке "Новый лабиринт")
-        private void InitializeGame()
-        {
-
-            // останавливаем старый таймер врагов, если был
-            model?.StopEnemyTimer();
-
-            // отписываем старый MazeView от событий модели
-            if (mazeView != null)
-            {
-                mazeView.ShowVictory = false;
-                mazeView.ShowDefeat = false;
-                mazeView.StopAnimation();
-                model.PlayerMoved -= mazeView.OnModelChanged;
-                model.MemoryChanged -= mazeView.OnModelChanged;
-                model.GameWon -= OnGameWon;   
-                model.GameLost -= OnGameLost; 
-                canvas.Paint -= mazeView.OnPaint;
-            }
-
-            // создаём новые модель, контроллер и представление
-            model = new GameModel(31, 31, 27);
-            controller = new GameController(model);
-            mazeView = new MazeView(model, canvas);
-            mazeView.RestartRequested += () => InitializeGame();
-            mazeView.ExitRequested += () => Application.Exit();
-
-            // подписываемся на события модели
-            model.PlayerMoved += mazeView.OnModelChanged;
-            model.MemoryChanged += mazeView.OnModelChanged;
-            model.GameWon += OnGameWon;
-            model.GameLost += OnGameLost;           // обрабатываем проигрыш
-
-            canvas.Paint += mazeView.OnPaint;
-            canvas.Invalidate();
-        }
-        private void OnGameWon()
-        {
-            mazeView.StopAnimation();
-            mazeView.ShowVictory = true;
-            canvas.Invalidate();
-        }
-
-        private void OnGameLost()
-        {
-            mazeView.StopAnimation();
-            mazeView.ShowDefeat = true;
-            canvas.Invalidate();
         }
     }
 }

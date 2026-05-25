@@ -8,10 +8,12 @@ namespace ShadowMaze.Model
     {
         public int X { get; set; }
         public int Y { get; set; }
-
+        public bool IsSlowed { get; set; } = false;
+        public bool IsPatrol { get; set; } = false; 
         private Maze maze;
         private Random random = new Random();
-        private int moveCooldown = 12; // начинают двигаться не сразу (пауза при старте)
+        private int moveCooldown = 5; 
+
 
         public Enemy(Maze maze, int startX, int startY)
         {
@@ -20,52 +22,68 @@ namespace ShadowMaze.Model
             Y = startY;
         }
 
-        // вызывается таймером модели
-        public void Update(Player player, MemorySystem memory)
+        public void Update(Player player, MemorySystem memory, List<Enemy> allEnemies)
         {
+
             if (moveCooldown > 0)
             {
                 moveCooldown--;
                 return;
             }
-            moveCooldown = 1; // скорость движения (раз в 3 такта)
+            if (IsSlowed)
+                moveCooldown = 5;            // замедленные враги
+            else if (!IsPatrol)
+                moveCooldown = 1;            // преследователь быстрый (1 такт)
+            else
+                moveCooldown = 2;            // патрульные обычные (2 такта)
 
-            // 1. если мы вне памяти — делаем шаг к ближайшей запомненной клетке
+            if (IsPatrol)
+            {
+                var allNeighbors = GetValidNeighborsIgnoreMemory();
+                allNeighbors.RemoveAll(cell => allEnemies.Any(e => e != this && e.X == cell.Item1 && e.Y == cell.Item2));
+                if (allNeighbors.Count > 0)
+                {
+                    var (nx, ny) = allNeighbors[random.Next(allNeighbors.Count)];
+                    X = nx;
+                    Y = ny;
+                }
+                return;
+            }
+
             if (!memory.IsRemembered(X, Y))
             {
                 MoveTowardNearestMemory(memory);
                 return;
             }
 
-            // 2. пытаемся найти путь к игроку по запомненным клеткам (A*)
             var path = FindPath(X, Y, player.X, player.Y, memory);
             if (path != null && path.Count > 1)
             {
                 var (nextX, nextY) = path[1];
+                if (allEnemies.Any(e => e != this && e.X == nextX && e.Y == nextY))
+                    return;
                 X = nextX;
                 Y = nextY;
-                return;
             }
-
-            // 3. если путь не найден — случайно бродим по соседним запомненным клеткам
-            var neighbors = GetValidMemoryNeighbors(memory);
-            if (neighbors.Count > 0)
+            else
             {
-                var (nx, ny) = neighbors[random.Next(neighbors.Count)];
-                X = nx;
-                Y = ny;
+                var neighbors = GetValidMemoryNeighbors(memory);
+                neighbors.RemoveAll(cell => allEnemies.Any(e => e != this && e.X == cell.Item1 && e.Y == cell.Item2));
+                if (neighbors.Count > 0)
+                {
+                    var (nx, ny) = neighbors[random.Next(neighbors.Count)];
+                    X = nx;
+                    Y = ny;
+                }
             }
-            // если соседей нет (застрял) — просто стоим, пока память не расширится
         }
 
-        // шаг в сторону ближайшей запомненной клетки (BFS по всем проходам)
         private void MoveTowardNearestMemory(MemorySystem memory)
         {
             var target = FindNearestRememberedCell(memory);
             if (target == null) return;
 
-            // ищем путь от текущей позиции до целевой клетки (без учёта памяти, только стены)
-            var path = FindPath(X, Y, target.Value.x, target.Value.y, memory, ignoreMemory: true);
+            var path = FindPath(X, Y, target.Value.Item1, target.Value.Item2, memory, ignoreMemory: true);
             if (path != null && path.Count > 1)
             {
                 var (nextX, nextY) = path[1];
@@ -74,8 +92,7 @@ namespace ShadowMaze.Model
             }
         }
 
-        // BFS для поиска ближайшей запомненной клетки
-        private (int x, int y)? FindNearestRememberedCell(MemorySystem memory)
+        private (int, int)? FindNearestRememberedCell(MemorySystem memory)
         {
             var visited = new bool[maze.Width, maze.Height];
             var queue = new Queue<(int, int)>();
@@ -104,7 +121,6 @@ namespace ShadowMaze.Model
             return null;
         }
 
-        // A* поиск пути: если ignoreMemory == true, то используем только стены, иначе только запомненные проходы
         private List<(int, int)>? FindPath(int startX, int startY, int goalX, int goalY,
             MemorySystem memory, bool ignoreMemory = false)
         {
@@ -132,7 +148,7 @@ namespace ShadowMaze.Model
                     if (nx >= 0 && nx < maze.Width && ny >= 0 && ny < maze.Height &&
                         !maze.GetCell(nx, ny)!.IsWall)
                     {
-                        if (!ignoreMemory && !memory.IsRemembered(nx, ny)) continue; // только запомненные
+                        if (!ignoreMemory && !memory.IsRemembered(nx, ny)) continue;
                         int tentativeG = gScore[(x, y)] + 1;
                         if (!gScore.ContainsKey((nx, ny)) || tentativeG < gScore[(nx, ny)])
                         {
@@ -171,6 +187,23 @@ namespace ShadowMaze.Model
                 if (nx >= 0 && nx < maze.Width && ny >= 0 && ny < maze.Height &&
                     !maze.GetCell(nx, ny)!.IsWall &&
                     memory.IsRemembered(nx, ny))
+                {
+                    neighbors.Add((nx, ny));
+                }
+            }
+            return neighbors;
+        }
+
+        private List<(int, int)> GetValidNeighborsIgnoreMemory()
+        {
+            var neighbors = new List<(int, int)>();
+            int[] dx = { 0, 0, 1, -1 };
+            int[] dy = { 1, -1, 0, 0 };
+            for (int i = 0; i < 4; i++)
+            {
+                int nx = X + dx[i], ny = Y + dy[i];
+                if (nx >= 0 && nx < maze.Width && ny >= 0 && ny < maze.Height &&
+                    !maze.GetCell(nx, ny)!.IsWall)
                 {
                     neighbors.Add((nx, ny));
                 }

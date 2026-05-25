@@ -15,7 +15,6 @@ namespace ShadowMaze.Controller
             this.model = model;
         }
 
-        // метод для обработки нажатий клавиш (вызовется из View)
         public void HandleInput(Model.Direction direction)
         {
             System.Diagnostics.Debug.WriteLine($"Controller received direction: {direction}");

@@ -20,12 +20,10 @@ namespace ShadowMaze.Model
             int exitX = Width - 2;
             int exitY = Height - 2;
 
-            // все клетки – проходы
             for (int x = 0; x < Width; x++)
                 for (int y = 0; y < Height; y++)
                     grid[x, y] = new Cell(false);
 
-            // внешние стены
             for (int x = 0; x < Width; x++)
             {
                 grid[x, 0].IsWall = true;
@@ -45,14 +43,13 @@ namespace ShadowMaze.Model
             int extraPassages = (Width * Height) / 20;
             AddExtraPassages(extraPassages);
 
-            // убираем мусор: висячие проходы и островные стены
             RemoveDanglingPassages();
             RemoveIsolatedWalls();
 
             // устанавливаем выход
             SetExit(exitX, exitY);
 
-            // финальная проверка связности (должна быть всегда true)
+            // финальная проверка связности 
             if (!HasPath(1, 1, exitX, exitY))
             {
                 ForcePath(1, 1, exitX, exitY);
@@ -215,7 +212,6 @@ namespace ShadowMaze.Model
             }
         }
 
-        // убираем проходы, у которых нет соседей-проходов (дырки в стенах)
         private void RemoveDanglingPassages()
         {
             bool changed = true;
@@ -246,7 +242,6 @@ namespace ShadowMaze.Model
             }
         }
 
-        // убираем стены, у которых нет соседей-стен (одинокие пиксели стен)
         private void RemoveIsolatedWalls()
         {
             bool changed = true;
@@ -266,7 +261,6 @@ namespace ShadowMaze.Model
                                 if (nx >= 0 && nx < Width && ny >= 0 && ny < Height && grid[nx, ny].IsWall)
                                     wallNeighbors++;
                             }
-                            // если стена не на границе и совсем одна = проход
                             if (wallNeighbors == 0 && x > 0 && x < Width - 1 && y > 0 && y < Height - 1)
                             {
                                 grid[x, y].IsWall = false;
@@ -321,12 +315,10 @@ namespace ShadowMaze.Model
             grid[endX, endY].IsWall = false;
         }
 
-        // добавляет дополнительные проходы, чтобы создать петли и обходные пути
         private void AddExtraPassages(int count)
         {
             List<(int, int)> wallCandidates = new List<(int, int)>();
 
-            // собираем все внутренние стены 
             for (int x = 1; x < Width - 1; x++)
             {
                 for (int y = 1; y < Height - 1; y++)

@@ -10,7 +10,7 @@ namespace ShadowMaze.Model
     {
         public int X { get; set; }
         public int Y { get; set; }
-        public int MemoriesLeft { get; set; }  // сколько клеток можем помнить
+        public int MemoriesLeft { get; set; }  
         public int VisionRadius { get; set; }
 
         public Player(int startX, int startY, int memoryCapacity = 50)
@@ -18,7 +18,7 @@ namespace ShadowMaze.Model
             X = startX;
             Y = startY;
             MemoriesLeft = memoryCapacity;
-            VisionRadius = 3;
+            VisionRadius = 2;
         }
     }
 }
