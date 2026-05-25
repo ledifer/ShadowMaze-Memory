@@ -15,7 +15,7 @@ namespace ShadowMaze.View
         private int offsetX;
         private int offsetY;
 
-        // Оригинальные текстуры (могут быть null, если ресурс отсутствует)
+        // текстуры
         private Image wallImage;
         private Image floorImage;
         private Image exitImage;
@@ -39,7 +39,7 @@ namespace ShadowMaze.View
         private Image itemSlowImageScaled;
 
 
-        // Состояния интерфейса
+        // состояния
         public bool IsMainMenu { get; set; } = false;
         public bool IsPlaying { get; set; } = false;
         public bool ShowVictory { get; set; } = false;
@@ -47,7 +47,7 @@ namespace ShadowMaze.View
         public bool IsMenuVisible { get; set; } = false;
         public bool IsPaused { get; set; } = false;
 
-        // Кнопки финала
+        // финальные кнопочки
         private Rectangle btnRestartRect;
         private Rectangle btnExitRect;
         private bool btnRestartHovered;
@@ -55,7 +55,7 @@ namespace ShadowMaze.View
         public event Action RestartRequested;
         public event Action ExitRequested;
 
-        // Главное меню
+        // главное меню
         public event Action MainMenuStartRequested;
         public event Action MainMenuExitRequested;
         public event Action MainMenuReturnRequested;
@@ -65,7 +65,7 @@ namespace ShadowMaze.View
         private bool btnStartHovered;
         private bool btnExitMainMenuHovered;
 
-        // Меню паузы
+        // пауза
         private Rectangle menuCloseRect;
         private Rectangle menuFullVisionRect;
         private Rectangle menuRestartRect;
@@ -75,13 +75,12 @@ namespace ShadowMaze.View
         private bool menuCloseHovered;
         private bool menuMainMenuHovered;
 
-        // --- КОНСТРУКТОР ---
+        
         public MazeView(GameModel model, PictureBox canvas)
         {
             this.model = model;
             this.canvas = canvas;
 
-            // Безопасная загрузка текстур (если ресурса нет, будет null)
             wallImage = LoadImageSafe(Properties.Resources.ResourceManager.GetObject("wall"));
             floorImage = LoadImageSafe(Properties.Resources.ResourceManager.GetObject("floor"));
             exitImage = LoadImageSafe(Properties.Resources.ResourceManager.GetObject("exit"));
@@ -93,7 +92,6 @@ namespace ShadowMaze.View
             itemSlowImage = LoadImageSafe(Properties.Resources.ResourceManager.GetObject("item_slow"));
             floorMemoryImage = LoadImageSafe(Properties.Resources.ResourceManager.GetObject("floor_memory"));
 
-            // При изменении размеров окна обновим всё, если есть модель (игра идёт)
             canvas.Resize += (s, e) =>
             {
                 if (model != null)
@@ -106,9 +104,7 @@ namespace ShadowMaze.View
 
         }
 
-        /// <summary>
-        /// Вызывается при старте новой игры для привязки модели.
-        /// </summary>
+
         public void SetModel(GameModel newModel)
         {
             this.model = newModel;
@@ -117,7 +113,6 @@ namespace ShadowMaze.View
                 model.EnemiesUpdated += () => canvas.Invalidate();
                 model.ItemsUpdated += () => canvas.Invalidate();
 
-                // Только теперь можем рассчитать размеры и текстуры
                 UpdateCellSize();
                 ScaleImages();
             }
@@ -130,7 +125,7 @@ namespace ShadowMaze.View
             canvas.Invalidate();
         }
 
-        // --- БЕЗОПАСНАЯ ЗАГРУЗКА РЕСУРСОВ ---
+        // безопасная загрузка текстур 
         private Image LoadImageSafe(object resourceObject)
         {
             try
@@ -143,7 +138,7 @@ namespace ShadowMaze.View
             }
         }
 
-        // ==================== ОТРИСОВКА ====================
+        // рисуем
         public void OnPaint(object? sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
@@ -177,7 +172,7 @@ namespace ShadowMaze.View
             Maze maze = model.Maze;
             Player player = model.Player;
 
-            // Клетки лабиринта
+            // клетки
             for (int x = 0; x < maze.Width; x++)
             {
                 for (int y = 0; y < maze.Height; y++)
@@ -700,7 +695,7 @@ namespace ShadowMaze.View
 
         public void HandleMouseUp(MouseEventArgs e)
         {
-            // ничего нет
+            
         }
 
         private void UpdateCellSize()
