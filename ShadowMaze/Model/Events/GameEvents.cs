@@ -6,5 +6,5 @@ using System.Threading.Tasks;
 
 namespace ShadowMaze.Model.Events
 {
-    // будет хранить классы аргументов для событий
+
 }
